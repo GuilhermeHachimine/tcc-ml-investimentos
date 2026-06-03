@@ -1,0 +1,16 @@
+package-mode = false
+
+[project]
+name = "tcc-ml-investimentos"
+version = "0.1.0"
+description = "Supervised machine learning for stock selection and portfolio backtesting"
+authors = [
+    {name = "Guilherme Hachimine",email = "gui.hachimine@gmail.com"}
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
