@@ -29,12 +29,10 @@ class YahooDataLoader:
             progress=False,
         )
 
-        dataframe = self._standardize_yfinance_dataframe(
+        return self._standardize_yfinance_dataframe(
             dataframe=dataframe,
             ticker=ticker,
         )
-
-        return dataframe
 
     def _standardize_yfinance_dataframe(
         self,
@@ -77,55 +75,120 @@ class YahooDataLoader:
             "volume",
         ]
 
-        dataframe = dataframe[expected_columns]
+        return dataframe[expected_columns]
 
-        return dataframe
-
-    def save_ticker_data(
+    def download_many_tickers(
         self,
-        dataframe: pd.DataFrame,
-        ticker: str,
-    ) -> Path:
+        tickers: list[str],
+    ) -> tuple[pd.DataFrame, list[str]]:
         """
-        Save ticker data into data/raw.
+        Download historical data for multiple tickers.
+
+        Returns
+        -------
+        tuple[pd.DataFrame, list[str]]
+            Consolidated price dataframe and list of failed tickers.
         """
-        self.raw_data_dir.mkdir(parents=True, exist_ok=True)
+        dataframes: list[pd.DataFrame] = []
+        failed_tickers: list[str] = []
 
-        output_path = self.raw_data_dir / f"{ticker}.csv"
+        for ticker in tickers:
+            try:
+                ticker_dataframe = self.download_ticker_data(ticker)
+                dataframes.append(ticker_dataframe)
+                print(f"Downloaded {ticker}: {ticker_dataframe.shape[0]} rows")
+            except Exception as error:
+                failed_tickers.append(ticker)
+                print(f"Failed to download {ticker}: {error}")
 
-        dataframe.to_csv(
-            output_path,
-            index=False,
+        if not dataframes:
+            raise ValueError("No ticker data was downloaded.")
+
+        consolidated_dataframe = pd.concat(
+            dataframes,
+            ignore_index=True,
         )
 
-        return output_path
+        return consolidated_dataframe, failed_tickers
 
-    def download_and_save_ticker(
+    def download_universe(
         self,
-        ticker: str,
-    ) -> pd.DataFrame:
+        tickers: list[str] | None = None,
+    ) -> tuple[pd.DataFrame, list[str]]:
         """
-        Download and save a single ticker.
+        Download historical data for the IBOV stock universe.
         """
-        dataframe = self.download_ticker_data(ticker)
+        selected_tickers = tickers or get_stock_universe()
 
-        self.save_ticker_data(
-            dataframe=dataframe,
-            ticker=ticker,
+        return self.download_many_tickers(
+            tickers=selected_tickers,
         )
-
-        return dataframe
 
     def download_benchmark(self) -> pd.DataFrame:
         """
-        Download Ibovespa benchmark.
+        Download Ibovespa benchmark historical data.
         """
         return self.download_ticker_data(
-            CONFIG.benchmark_ticker
+            ticker=CONFIG.benchmark_ticker,
         )
 
-    def get_universe(self) -> list[str]:
+    def save_dataset(
+        self,
+        dataframe: pd.DataFrame,
+        file_stem: str,
+        save_csv: bool = True,
+        save_parquet: bool = True,
+    ) -> dict[str, Path]:
         """
-        Return the IBOV stock universe.
+        Save a dataset in CSV and/or Parquet format.
         """
-        return get_stock_universe()
+        self.raw_data_dir.mkdir(parents=True, exist_ok=True)
+
+        output_paths: dict[str, Path] = {}
+
+        if save_csv:
+            csv_path = self.raw_data_dir / f"{file_stem}.csv"
+            dataframe.to_csv(csv_path, index=False)
+            output_paths["csv"] = csv_path
+
+        if save_parquet:
+            parquet_path = self.raw_data_dir / f"{file_stem}.parquet"
+            dataframe.to_parquet(parquet_path, index=False)
+            output_paths["parquet"] = parquet_path
+
+        return output_paths
+
+    def download_and_save_universe(
+        self,
+        tickers: list[str] | None = None,
+        file_stem: str = "ibov_prices",
+    ) -> tuple[pd.DataFrame, list[str], dict[str, Path]]:
+        """
+        Download and save the IBOV universe historical data.
+        """
+        dataframe, failed_tickers = self.download_universe(
+            tickers=tickers,
+        )
+
+        output_paths = self.save_dataset(
+            dataframe=dataframe,
+            file_stem=file_stem,
+        )
+
+        return dataframe, failed_tickers, output_paths
+
+    def download_and_save_benchmark(
+        self,
+        file_stem: str = "ibovespa_benchmark",
+    ) -> tuple[pd.DataFrame, dict[str, Path]]:
+        """
+        Download and save the Ibovespa benchmark historical data.
+        """
+        dataframe = self.download_benchmark()
+
+        output_paths = self.save_dataset(
+            dataframe=dataframe,
+            file_stem=file_stem,
+        )
+
+        return dataframe, output_paths
