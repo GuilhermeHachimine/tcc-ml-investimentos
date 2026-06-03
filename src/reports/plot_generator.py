@@ -44,6 +44,49 @@ class PlotGenerator:
 
         return str(output_path)
 
+    def plot_model_comparison_equity_curve(
+        self,
+        backtests_by_model: dict[str, pd.DataFrame],
+        file_name: str,
+    ) -> str:
+        """
+        Plot all model equity curves against Ibovespa.
+        """
+        plt.figure(figsize=(10, 6))
+
+        benchmark_plotted = False
+
+        for model_name, backtest_dataframe in backtests_by_model.items():
+            dataframe = backtest_dataframe.copy()
+            dataframe["date"] = pd.to_datetime(dataframe["date"])
+
+            plt.plot(
+                dataframe["date"],
+                dataframe["portfolio_cumulative_return"],
+                label=model_name,
+            )
+
+            if not benchmark_plotted:
+                plt.plot(
+                    dataframe["date"],
+                    dataframe["benchmark_cumulative_return"],
+                    label="Ibovespa",
+                    linestyle="--",
+                )
+                benchmark_plotted = True
+
+        plt.title("Equity Curve Comparison - Models vs Ibovespa")
+        plt.xlabel("Date")
+        plt.ylabel("Cumulative value")
+        plt.legend()
+        plt.tight_layout()
+
+        output_path = CONFIG.figures_dir / file_name
+        plt.savefig(output_path, dpi=300)
+        plt.close()
+
+        return str(output_path)
+
     def plot_feature_importance(
         self,
         importance_dataframe: pd.DataFrame,
