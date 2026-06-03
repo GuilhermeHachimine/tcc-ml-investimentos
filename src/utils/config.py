@@ -8,6 +8,7 @@ class ProjectConfig:
     project_root: Path = Path(__file__).resolve().parents[2]
     raw_data_dir: Path = project_root / "data" / "raw"
     processed_data_dir: Path = project_root / "data" / "processed"
+    external_data_dir: Path = project_root / "data" / "external"
     reports_dir: Path = project_root / "reports"
     figures_dir: Path = reports_dir / "figures"
     tables_dir: Path = reports_dir / "tables"
