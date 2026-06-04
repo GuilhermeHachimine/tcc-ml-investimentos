@@ -48,12 +48,6 @@ Three supervised regression models were trained using a simple temporal split.
 - Main portfolio: Top 10 assets
 - Rebalancing: monthly, using the last available trading day of each month
 
-### Models
-
-- Decision Tree Regressor
-- Random Forest Regressor
-- XGBoost Regressor
-
 ### Main Results - Top 10 Portfolio
 
 | Model | Portfolio total return | Portfolio Sharpe | Hit rate |
@@ -74,17 +68,13 @@ Completed.
 
 ---
 
-## Experiment 003 - Portfolio size sensitivity analysis
+## Experiment 003 - Simple split portfolio size sensitivity analysis
 
 ### Date
 
 2026-06-03
 
-### Description
-
-Sensitivity analysis was performed by varying the number of selected assets.
-
-Portfolio sizes tested:
+### Portfolio sizes tested
 
 - Top 10
 - Top 15
@@ -106,7 +96,7 @@ Portfolio sizes tested:
 
 ### Preliminary Interpretation
 
-The Top 10 portfolios presented stronger performance than the Top 15 and Top 20 portfolios, especially for Random Forest. This suggests that model concentration may be relevant for portfolio construction, since adding lower-ranked assets diluted performance.
+The Top 10 portfolios presented stronger performance than the Top 15 and Top 20 portfolios, especially for Random Forest. This suggests that concentration may be relevant for portfolio construction, since adding lower-ranked assets diluted performance.
 
 ### Status
 
@@ -123,10 +113,6 @@ Completed.
 ### Description
 
 Feature importance was calculated for Random Forest and XGBoost using the training period.
-
-### Main Findings
-
-Both models assigned greater importance to medium-term momentum and volatility variables.
 
 ### Random Forest - Top features
 
@@ -151,6 +137,82 @@ Both models assigned greater importance to medium-term momentum and volatility v
 ### Preliminary Interpretation
 
 The results indicate that medium-term return, volatility and distance from moving averages were more relevant than one-day return. This is consistent with the idea that medium-term price behavior may contain more useful information for ranking assets than very short-term movements.
+
+### Status
+
+Completed.
+
+---
+
+## Experiment 005 - Walk-forward validation
+
+### Date
+
+2026-06-04
+
+### Description
+
+The models were evaluated using expanding-window walk-forward validation.
+
+For each test year:
+
+- the model was trained using all previous years;
+- predictions were generated only for the test year;
+- predictions were concatenated across the full test period.
+
+### Main Results - Top 10 Portfolio
+
+| Model | Portfolio total return | Portfolio Sharpe | Hit rate |
+|---|---:|---:|---:|
+| Decision Tree | 40.90% | 0.4022 | 50.85% |
+| Random Forest | 94.50% | 0.5972 | 54.24% |
+| XGBoost | 95.37% | 0.6152 | 50.85% |
+
+### Benchmark
+
+| Benchmark | Total return |
+|---|---:|
+| Ibovespa | 43.02% |
+
+### Preliminary Interpretation
+
+Walk-forward validation reduced the extreme performance observed in the simple split, especially for Decision Tree and Random Forest. However, Random Forest and XGBoost still outperformed the benchmark in cumulative return. XGBoost improved substantially under walk-forward validation, suggesting that this model benefits from periodic retraining.
+
+### Status
+
+Completed.
+
+---
+
+## Experiment 006 - Walk-forward portfolio size sensitivity analysis
+
+### Date
+
+2026-06-04
+
+### Portfolio sizes tested
+
+- Top 10
+- Top 15
+- Top 20
+
+### Results
+
+| Model | Top N | Portfolio total return | Portfolio Sharpe | Hit rate |
+|---|---:|---:|---:|---:|
+| Decision Tree | 10 | 40.90% | 0.4022 | 50.85% |
+| Decision Tree | 15 | 58.52% | 0.5214 | 50.85% |
+| Decision Tree | 20 | 68.93% | 0.5890 | 49.15% |
+| Random Forest | 10 | 94.50% | 0.5972 | 54.24% |
+| Random Forest | 15 | 61.66% | 0.4884 | 50.85% |
+| Random Forest | 20 | 46.51% | 0.4259 | 49.15% |
+| XGBoost | 10 | 95.37% | 0.6152 | 50.85% |
+| XGBoost | 15 | 75.32% | 0.5702 | 49.15% |
+| XGBoost | 20 | 58.11% | 0.4980 | 54.24% |
+
+### Preliminary Interpretation
+
+Under walk-forward validation, Random Forest and XGBoost maintained stronger performance with Top 10 portfolios, while Decision Tree benefited from greater diversification. This suggests that the more robust ensemble models were better able to rank the highest-scoring assets, whereas the simpler tree model produced rankings that benefited from diversification.
 
 ### Status
 
