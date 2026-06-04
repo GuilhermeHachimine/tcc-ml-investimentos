@@ -39,7 +39,6 @@ class ModelTrainer:
 
     def __init__(self) -> None:
         self.train_end_date = pd.to_datetime(CONFIG.train_end_date)
-        self.models = ModelFactory.create_all_models()
 
     def train_simple_split(
         self,
@@ -51,6 +50,89 @@ class ModelTrainer:
         train_df = dataframe[dataframe["date"] <= self.train_end_date].copy()
         test_df = dataframe[dataframe["date"] > self.train_end_date].copy()
 
+        models = ModelFactory.create_all_models()
+
+        return self._train_and_predict(
+            train_df=train_df,
+            test_df=test_df,
+            models=models,
+        )
+
+    def train_walk_forward_by_year(
+        self,
+        dataframe: pd.DataFrame,
+        first_test_year: int = 2021,
+    ) -> list[TrainResult]:
+        """
+        Train models using expanding-window walk-forward validation.
+
+        For each test year:
+        - train on all data before that year;
+        - predict only that year;
+        - concatenate predictions across years.
+        """
+        dataframe = dataframe.copy()
+        dataframe["date"] = pd.to_datetime(dataframe["date"])
+
+        max_year = dataframe["date"].dt.year.max()
+        all_predictions_by_model: dict[str, list[pd.DataFrame]] = {
+            "decision_tree": [],
+            "random_forest": [],
+            "xgboost": [],
+        }
+
+        for test_year in range(first_test_year, max_year + 1):
+            train_df = dataframe[dataframe["date"].dt.year < test_year].copy()
+            test_df = dataframe[dataframe["date"].dt.year == test_year].copy()
+
+            if train_df.empty or test_df.empty:
+                continue
+
+            models = ModelFactory.create_all_models()
+
+            yearly_results = self._train_and_predict(
+                train_df=train_df,
+                test_df=test_df,
+                models=models,
+            )
+
+            for result in yearly_results:
+                predictions = result.predictions.copy()
+                predictions["walk_forward_test_year"] = test_year
+                all_predictions_by_model[result.model_name].append(predictions)
+
+        final_results: list[TrainResult] = []
+
+        for model_name, prediction_frames in all_predictions_by_model.items():
+            if not prediction_frames:
+                continue
+
+            predictions = pd.concat(
+                prediction_frames,
+                ignore_index=True,
+            )
+
+            y_true = predictions[TARGET_COLUMN]
+            y_pred = predictions["prediction"]
+
+            final_results.append(
+                TrainResult(
+                    model_name=model_name,
+                    mae=mean_absolute_error(y_true, y_pred),
+                    rmse=np.sqrt(mean_squared_error(y_true, y_pred)),
+                    r2=r2_score(y_true, y_pred),
+                    predictions=predictions,
+                )
+            )
+
+        return final_results
+
+    def _train_and_predict(
+        self,
+        train_df: pd.DataFrame,
+        test_df: pd.DataFrame,
+        models: dict[str, object],
+    ) -> list[TrainResult]:
         x_train = train_df[FEATURE_COLUMNS]
         y_train = train_df[TARGET_COLUMN]
 
@@ -59,7 +141,7 @@ class ModelTrainer:
 
         results: list[TrainResult] = []
 
-        for model_name, model in self.models.items():
+        for model_name, model in models.items():
             model.fit(x_train, y_train)
 
             y_pred = model.predict(x_test)
