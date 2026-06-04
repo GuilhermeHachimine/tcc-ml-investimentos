@@ -1,14 +1,14 @@
 import pandas as pd
 
 from src.backtesting.backtester import Backtester
-from src.models.model_trainer import ModelTrainer
+from src.models.model_trainer import ModelTrainer, TrainResult
 from src.portfolio.portfolio_selector import PortfolioSelector
 from src.utils.config import CONFIG
 
 
 class ModelBacktestRunner:
     """
-    Train all models, build portfolios and compare backtest metrics.
+    Train models, build portfolios and compare backtest metrics.
     """
 
     def __init__(self) -> None:
@@ -23,11 +23,79 @@ class ModelBacktestRunner:
         """
         Run simple temporal split backtests for all models.
         """
-        selected_top_n = top_n_assets or CONFIG.top_n_assets
-
         train_results = self.trainer.train_simple_split(
             dataframe=dataframe,
         )
+
+        return self._run_backtests(
+            train_results=train_results,
+            top_n_assets=top_n_assets,
+        )
+
+    def run_walk_forward_backtests(
+        self,
+        dataframe: pd.DataFrame,
+        top_n_assets: int | None = None,
+        first_test_year: int = 2021,
+    ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+        """
+        Run walk-forward backtests for all models.
+        """
+        train_results = self.trainer.train_walk_forward_by_year(
+            dataframe=dataframe,
+            first_test_year=first_test_year,
+        )
+
+        return self._run_backtests(
+            train_results=train_results,
+            top_n_assets=top_n_assets,
+        )
+
+    def run_sensitivity_analysis(
+        self,
+        dataframe: pd.DataFrame,
+        top_n_values: list[int],
+    ) -> pd.DataFrame:
+        """
+        Run simple split sensitivity analysis for multiple portfolio sizes.
+        """
+        train_results = self.trainer.train_simple_split(
+            dataframe=dataframe,
+        )
+
+        return self._run_sensitivity_from_train_results(
+            train_results=train_results,
+            top_n_values=top_n_values,
+        )
+
+    def run_walk_forward_sensitivity_analysis(
+        self,
+        dataframe: pd.DataFrame,
+        top_n_values: list[int],
+        first_test_year: int = 2021,
+    ) -> pd.DataFrame:
+        """
+        Run walk-forward sensitivity analysis for multiple portfolio sizes.
+        """
+        train_results = self.trainer.train_walk_forward_by_year(
+            dataframe=dataframe,
+            first_test_year=first_test_year,
+        )
+
+        return self._run_sensitivity_from_train_results(
+            train_results=train_results,
+            top_n_values=top_n_values,
+        )
+
+    def _run_backtests(
+        self,
+        train_results: list[TrainResult],
+        top_n_assets: int | None = None,
+    ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+        """
+        Build portfolios and calculate backtests for train results.
+        """
+        selected_top_n = top_n_assets or CONFIG.top_n_assets
 
         metrics_rows: list[dict] = []
         backtests_by_model: dict[str, pd.DataFrame] = {}
@@ -56,24 +124,18 @@ class ModelBacktestRunner:
             metrics_rows.append(metrics)
             backtests_by_model[train_result.model_name] = backtest_result
 
-        metrics_dataframe = self._order_metrics_columns(
-            pd.DataFrame(metrics_rows)
-        )
+        metrics_dataframe = self._order_metrics_columns(pd.DataFrame(metrics_rows))
 
         return metrics_dataframe, backtests_by_model
 
-    def run_sensitivity_analysis(
+    def _run_sensitivity_from_train_results(
         self,
-        dataframe: pd.DataFrame,
+        train_results: list[TrainResult],
         top_n_values: list[int],
     ) -> pd.DataFrame:
         """
-        Run sensitivity analysis for multiple portfolio sizes.
+        Run sensitivity analysis from already trained/predicted results.
         """
-        train_results = self.trainer.train_simple_split(
-            dataframe=dataframe,
-        )
-
         metrics_rows: list[dict] = []
 
         for top_n_assets in top_n_values:
@@ -100,9 +162,7 @@ class ModelBacktestRunner:
 
                 metrics_rows.append(metrics)
 
-        metrics_dataframe = self._order_metrics_columns(
-            pd.DataFrame(metrics_rows)
-        )
+        metrics_dataframe = self._order_metrics_columns(pd.DataFrame(metrics_rows))
 
         metrics_dataframe = metrics_dataframe.sort_values(
             ["model_name", "top_n_assets"]
@@ -114,7 +174,7 @@ class ModelBacktestRunner:
         self,
         metrics_dataframe: pd.DataFrame,
         backtests_by_model: dict[str, pd.DataFrame],
-        file_prefix: str = "simple_split_top10",
+        file_prefix: str,
     ) -> dict[str, str]:
         """
         Save metrics and backtest results to reports/tables.
@@ -134,8 +194,7 @@ class ModelBacktestRunner:
 
         for model_name, backtest_dataframe in backtests_by_model.items():
             backtest_path = (
-                CONFIG.tables_dir
-                / f"{file_prefix}_{model_name}_backtest.csv"
+                CONFIG.tables_dir / f"{file_prefix}_{model_name}_backtest.csv"
             )
 
             backtest_dataframe.to_csv(
@@ -150,13 +209,14 @@ class ModelBacktestRunner:
     def save_sensitivity_results(
         self,
         metrics_dataframe: pd.DataFrame,
+        file_name: str = "sensitivity_analysis.csv",
     ) -> str:
         """
         Save sensitivity analysis results.
         """
         CONFIG.tables_dir.mkdir(parents=True, exist_ok=True)
 
-        output_path = CONFIG.tables_dir / "sensitivity_analysis.csv"
+        output_path = CONFIG.tables_dir / file_name
 
         metrics_dataframe.to_csv(
             output_path,
