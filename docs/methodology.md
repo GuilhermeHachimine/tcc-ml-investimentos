@@ -12,6 +12,7 @@ Evaluate whether supervised machine learning models can select stock portfolios 
 
 * Source: B3 – Ações por Índice
 * URL: https://www.b3.com.br
+https://www.b3.com.br/pt_br/market-data-e-indices/indices/acoes-por-indice/
 * Access date: 2026-06-03
 * Downloaded file: AcoesIndices_2026-06-03.csv
 
